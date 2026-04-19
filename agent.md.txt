@@ -1,0 +1,485 @@
+# agent.md
+
+## Project Name
+Trading Signal Assistant
+
+## Goal
+Build a Python-based trading signal assistant that:
+
+1. reads market data from legal and developer-friendly sources
+2. supports multi-timeframe analysis such as 1m, 5m, 15m, 1h
+3. applies reusable analysis templates
+4. outputs actionable trading opportunities:
+   - long setup
+   - short setup
+   - wait / no-trade
+5. shows results in a simple web UI
+6. sends alerts to messaging channels
+7. is modular, so later I can expand it with more indicators, scoring logic, news filters, and broker integrations
+
+This system is **not required to auto-place trades in phase 1**.
+Phase 1 focuses on:
+- data ingestion
+- signal generation
+- risk-aware trade idea output
+- notification
+- UI
+
+---
+
+## Product Vision
+The app should act like a personal trading analyst.
+
+Instead of only showing charts, it should answer:
+- what is tradable now?
+- is the bias long or short?
+- what is the trigger price?
+- where is invalidation?
+- what is the stop-loss?
+- what is the first take-profit zone?
+- when should I avoid trading because signals conflict?
+
+The app must not output vague statements only.
+It must produce structured and explainable trade ideas.
+
+---
+
+## Constraints
+1. Use Python as the backend language.
+2. Make the architecture modular and production-friendly.
+3. Prefer official or developer-friendly data APIs.
+4. Do not rely on fragile webpage scraping as the core market data source.
+5. Scraping, if used, must be optional and only for low-priority reference info.
+6. The code should be clear enough for future extension by another agent.
+7. Add logging, config separation, and basic tests.
+8. Use environment variables for API keys.
+9. Build for local first, then make deployable later.
+10. Output must be understandable by a discretionary trader.
+
+---
+
+## Preferred Stack
+
+### Backend
+- Python 3.11+
+- FastAPI for API backend
+- Pydantic for config and schemas
+- Pandas for time series processing
+- NumPy for calculations
+- httpx for API calls
+- tenacity for retry logic
+- loguru or standard logging for logs
+
+### Frontend
+Choose one of the following:
+- Streamlit for fastest MVP
+- or FastAPI + lightweight frontend later
+
+For phase 1, prefer **Streamlit** because it is faster to implement.
+
+### Notifications
+- Telegram bot
+- WeCom webhook
+- email optional
+Design the notification layer so more channels can be added later.
+
+### Storage
+Phase 1:
+- SQLite for signal/event history
+- local file cache for raw data snapshots
+
+Later:
+- PostgreSQL if needed
+
+### Scheduling
+- APScheduler for local scheduled jobs
+- or simple interval loop in development
+
+---
+
+## Data Source Strategy
+
+### Core Principle
+Use legal and developer-friendly APIs as primary sources.
+
+### Primary Data Types Needed
+1. market quotes
+2. intraday candles
+3. daily candles
+4. macro / economic calendar data
+5. optional news headlines
+6. optional sentiment proxy
+
+### Suggested Source Categories
+Use adapters so that data providers can be swapped later.
+
+Possible adapters:
+- FMP adapter
+- Alpha Vantage adapter
+- FRED adapter
+- other provider adapters later
+
+### Rules
+- Build a provider abstraction layer
+- Never hardcode one provider throughout the app
+- The analysis engine must consume normalized data, not provider-specific formats
+
+---
+
+## Core Functional Requirements
+
+### 1. Watchlist Management
+The app must allow defining a configurable watchlist.
+
+Initial examples:
+- WTI / Crude
+- Natural Gas
+- Gold
+- Copper
+- Aluminum
+- Iron Ore
+- major indices if needed
+
+The watchlist must be configurable via a file such as:
+- `config/watchlist.yaml`
+
+Each symbol entry should support:
+- symbol id
+- display name
+- asset class
+- enabled timeframes
+- preferred provider
+- session notes
+- volatility profile
+
+---
+
+### 2. Market Data Ingestion
+Implement a data ingestion module that:
+- fetches candles for each symbol/timeframe
+- normalizes into one internal schema
+- caches latest data
+- handles retries
+- logs failures cleanly
+- can run on schedule
+
+Required timeframes for MVP:
+- 1m
+- 5m
+- 15m
+- 1h
+- 1d
+
+Internal candle schema:
+- symbol
+- timeframe
+- timestamp
+- open
+- high
+- low
+- close
+- volume
+- source
+
+---
+
+### 3. Indicator Engine
+Implement an indicator engine that calculates at minimum:
+- EMA 20
+- EMA 50
+- RSI 14
+- MACD
+- ATR 14
+- rolling high / low breakout levels
+- recent swing high / low markers
+
+Keep indicators modular:
+- one file per indicator group or a clean indicator package
+
+---
+
+### 4. Market Structure Analysis
+The strategy layer must determine:
+- short-term trend
+- medium-term trend
+- momentum alignment
+- volatility condition
+- breakout vs mean-reversion environment
+
+At minimum create functions that answer:
+- is price above or below key EMAs?
+- is momentum rising or falling?
+- is volatility expanding or compressing?
+- is the current move a breakout candidate?
+- is there signal conflict across timeframes?
+
+---
+
+### 5. Trade Signal Template
+Create a structured trade signal model.
+
+Each generated signal must contain:
+- symbol
+- timestamp
+- direction: long / short / wait
+- confidence score
+- setup type
+- trigger price
+- stop loss
+- take profit 1
+- take profit 2 optional
+- invalidation condition
+- reasons list
+- conflict flags
+- timeframe alignment summary
+- risk-reward estimate
+
+Possible setup types:
+- trend continuation breakout
+- pullback continuation
+- reversal rejection
+- no-trade / conflict
+
+---
+
+### 6. Signal Scoring Logic
+Build a transparent scoring system.
+
+Example dimensions:
+- trend score
+- momentum score
+- volatility score
+- timeframe alignment score
+- risk-reward score
+- conflict penalty
+- event-risk penalty
+
+The final result should produce:
+- high conviction
+- medium conviction
+- low conviction
+- no-trade
+
+Do not use black-box logic in phase 1.
+Use explainable rule-based scoring.
+
+---
+
+### 7. Risk Filter
+Add risk-aware filters before sending any signal.
+
+Examples:
+- do not send if risk-reward is below threshold
+- do not send if stop distance is too tight for ATR
+- do not send if signal conflicts with higher timeframe
+- do not send if there is no clean trigger
+- optionally suppress signals during high-risk event windows
+
+Configurable thresholds:
+- minimum RR
+- maximum spread proxy if available
+- minimum confidence
+- ATR-based stop multiplier
+- cooldown time between repeated alerts
+
+---
+
+### 8. Multi-Timeframe Logic
+The engine must compare multiple timeframes.
+
+Example logic:
+- 1m and 5m for timing
+- 15m for structure
+- 1h for directional filter
+- 1d for higher-level context
+
+Signal examples:
+- long allowed only if 1h trend supports and 5m triggers
+- short allowed only if 15m breakdown and 1h is neutral-to-bearish
+- otherwise label as wait
+
+The output must explain the alignment in plain language.
+
+---
+
+### 9. Notification Engine
+Build a notification module that can send alerts to:
+- Telegram
+- WeCom webhook
+- console/log output for development
+
+Alert format example:
+- symbol
+- direction
+- trigger
+- stop
+- target
+- confidence
+- short rationale
+- invalidation
+- timestamp
+
+Make notifications compact but actionable.
+
+---
+
+### 10. Web UI
+Build a simple dashboard.
+
+For MVP include:
+1. watchlist overview
+2. current bias per instrument
+3. latest signals
+4. confidence and direction
+5. key levels
+6. signal reason summary
+7. optional chart snapshot or embedded chart data
+8. filter by timeframe / asset
+9. market status section:
+   - tradable now
+   - wait
+   - conflict
+
+The homepage should immediately answer:
+- what are the top tradable setups now?
+
+---
+
+### 11. Signal History
+Store generated signals and outcomes.
+
+Minimum stored fields:
+- signal id
+- symbol
+- timestamp
+- direction
+- trigger
+- stop
+- TP1
+- confidence
+- rationale
+- status
+
+Later we can add:
+- hit TP
+- hit stop
+- expired
+- manually ignored
+- manually executed
+
+This will help evaluate signal quality later.
+
+---
+
+### 12. Config System
+Use a central config system.
+
+Use:
+- `.env` for secrets
+- YAML or TOML for app config
+- Pydantic settings for loading and validation
+
+Need config sections for:
+- providers
+- watchlist
+- thresholds
+- notification channels
+- scheduler
+- logging
+
+---
+
+## Non-Functional Requirements
+
+### Code Quality
+- type hints required
+- docstrings on public functions
+- avoid overly long files
+- keep modules cohesive
+- use service classes where helpful
+
+### Reliability
+- retry external API failures
+- degrade gracefully when one provider fails
+- log provider failures clearly
+- avoid crashing full app on one symbol failure
+
+### Performance
+- fetching should be batched where possible
+- analysis should run efficiently for multiple symbols/timeframes
+- avoid unnecessary repeated API calls
+
+### Security
+- no API key hardcoding
+- do not print secrets in logs
+- safe env handling
+
+---
+
+## Suggested Project Structure
+
+```text
+trading-signal-assistant/
+├─ app/
+│  ├─ api/
+│  │  ├─ routes/
+│  │  └─ main.py
+│  ├─ core/
+│  │  ├─ config.py
+│  │  ├─ logging.py
+│  │  └─ enums.py
+│  ├─ data/
+│  │  ├─ providers/
+│  │  │  ├─ base.py
+│  │  │  ├─ fmp.py
+│  │  │  ├─ alpha_vantage.py
+│  │  │  └─ fred.py
+│  │  ├─ models.py
+│  │  ├─ fetcher.py
+│  │  ├─ normalizer.py
+│  │  └─ cache.py
+│  ├─ indicators/
+│  │  ├─ trend.py
+│  │  ├─ momentum.py
+│  │  ├─ volatility.py
+│  │  └─ structure.py
+│  ├─ analysis/
+│  │  ├─ context.py
+│  │  ├─ scoring.py
+│  │  ├─ filters.py
+│  │  ├─ engine.py
+│  │  └─ templates.py
+│  ├─ signals/
+│  │  ├─ models.py
+│  │  ├─ generator.py
+│  │  └─ formatter.py
+│  ├─ notifications/
+│  │  ├─ base.py
+│  │  ├─ telegram.py
+│  │  ├─ wecom.py
+│  │  └─ dispatcher.py
+│  ├─ storage/
+│  │  ├─ db.py
+│  │  ├─ repositories.py
+│  │  └─ sqlite_models.py
+│  ├─ scheduler/
+│  │  └─ jobs.py
+│  └─ ui/
+│     └─ streamlit_app.py
+├─ config/
+│  ├─ app.yaml
+│  ├─ watchlist.yaml
+│  └─ thresholds.yaml
+├─ tests/
+│  ├─ test_indicators.py
+│  ├─ test_scoring.py
+│  ├─ test_signal_generation.py
+│  └─ test_provider_normalization.py
+├─ scripts/
+│  ├─ run_analysis.py
+│  ├─ backfill_data.py
+│  └─ smoke_test.py
+├─ .env.example
+├─ requirements.txt
+├─ README.md
+└─ agent.md

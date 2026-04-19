@@ -1,0 +1,24 @@
+
+
+# task.md
+
+Please implement the project described in `agent.md`.
+
+Execution priorities:
+1. create the repository skeleton
+2. implement config and core models
+3. implement one provider adapter end-to-end
+4. implement indicator pipeline
+5. implement signal engine
+6. implement Streamlit dashboard
+7. implement Telegram or WeCom notification
+8. add SQLite persistence
+9. add smoke tests
+10. update README with setup and run instructions
+
+Important:
+- Keep the code runnable after each phase
+- Use environment variables for secrets
+- Do not hardcode API keys
+- Focus on MVP first
+- Prefer clarity and modularity
